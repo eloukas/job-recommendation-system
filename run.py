@@ -3,7 +3,6 @@ import pandas as pd
 from dataprep.eda import *
 from nltk.stem import PorterStemmer
 from libs.helper import *
-from libs.helper import *
 import os
 import pandas as pd
 from sklearn.decomposition import TruncatedSVD
@@ -50,30 +49,43 @@ import pickle
 # 		cosine_similarity(train_dataset_reduced_dims, train_dataset_reduced_dims))
 
 
-def get_similarity(dataset1, dataset2):
-	similarity_matrix = cosine_similarity(dataset1, dataset2)
+def get_similarity_matrix(dataset):
+	similarity_matrix = cosine_similarity(dataset, dataset)
 	similarity_matrix_df = pd.DataFrame(similarity_matrix)
 
 	return similarity_matrix_df
 
 
 # TODO: Print samples from train/dev/test
-def recommend_and_print(id, similarity_matrix, jobs_to_return=5):
+def get_recommendations(similarity_matrix, input_id, jobs_to_return=15):
 	print(f"Input:")
-	print(f"Title: {job_to_title[id]}")
-	print(f"Description: {job_to_description[id]}\n\n\n")
+	print(f"Title: {job_dict[input_id]['title']}")
+	print(f"Description: {job_dict[input_id]['description']}\n\n")
 
-	temp_df = similarity_matrix.iloc[id].nlargest(jobs_to_return + 1)  # Get top n similar jobs
-	list_with_similar_job_ids = list(temp_df.iloc[1:].index)  # Discard yourself
+	last_idx = similarity_matrix.tail(1).index
+	temp_df = similarity_matrix.iloc[last_idx].T
+	temp_df.rename(columns={temp_df.columns[0]: 'given_job_id'}, inplace=True)
 
+	recommended_jobs_df = temp_df.nlargest(jobs_to_return + 1, 'given_job_id')  # Get top n similar jobs
+	list_with_similar_job_ids = list(recommended_jobs_df.iloc[1:].index)  # Discard itself
+
+	dict_with_relevant_jobs = dict()
 	# Return similarity scores, titles, descriptions
-	similarity_scores = list(temp_df.iloc[1:].values)
-	for id, sim_score in zip(list_with_similar_job_ids, similarity_scores):
-		print(f"Cosine Similarity Score: {sim_score}")
-		print(f"Title: {job_to_title[id]}")
-		print(f"Description: {job_to_description[id]}\n")
+	similarity_scores = [item for sublist in recommended_jobs_df.iloc[1:].values.tolist() for item in sublist]
+	for current_id, sim_score in zip(list_with_similar_job_ids, similarity_scores):
 
-	return None
+		print(f'Current id: {current_id}')
+		print(f"Cosine Similarity Score: {sim_score}")
+		print(f"Title: {job_dict[current_id]['title']}")
+		print(f"Description: {job_dict[current_id]['description']}\n")
+
+		# TODO: Fine-tune it
+		if sim_score < 0.70:
+			continue
+
+		dict_with_relevant_jobs[current_id] = round(sim_score*10)
+
+	return dict_with_relevant_jobs
 
 
 def normalize(dataset):
@@ -230,6 +242,8 @@ def main(dataset_filepath, mode):
 		# It will be used in dev/test mode later to compute similarities between jobs and generate recommendations
 		dataset_reduced_dims = pd.DataFrame(svd.transform(dataset))
 		dataset_reduced_dims.to_csv(corpus_reduced_dims_filepath, index=False)
+
+		job_ids = corpus_job_ids
 	else:
 
 		with open(model_filename, 'rb') as fin:
@@ -238,24 +252,31 @@ def main(dataset_filepath, mode):
 		corpus_df = pd.read_csv(corpus_reduced_dims_filepath)
 		infer_df = pd.DataFrame(svd.transform(dataset))
 
-		dataframe_for_similarity = corpus_df.copy()
-		for idx, row in infer_df.iterrows():
-			dataframe_for_similarity.loc[dataframe_for_similarity.shape[0]] = list(row.values)
-			similarity_matrix = get_similarity(corpus_df, infer_df)
-			dataframe_for_similarity.drop(df.tail(1).index, inplace=True)  # drop last row
+		job_ids = dev_job_ids if mode == 'dev' else test_job_ids
 
-			print('')
+	dataframe_used_for_similarity = corpus_df.copy()
+	predictions_dict = dict()
+	for iter_tuple in zip(infer_df.iterrows(), job_ids):
+		row = iter_tuple[0][1]
+		job_id = iter_tuple[1]
+		dataframe_used_for_similarity.loc[dataframe_used_for_similarity.shape[0]] = list(row.values)
+		similarity_matrix = get_similarity_matrix(dataframe_used_for_similarity)
 
-		if mode == 'dev':
+		predictions_dict[job_id] = get_recommendations(similarity_matrix, job_id)
+		dataframe_used_for_similarity.drop(dataframe_used_for_similarity.tail(1).index, inplace=True)  # drop last row
 
-			pass
-		# TODO: Fine-tune params
-		elif mode == 'test':
-			pass
+		print('')
+
+
+	if mode == 'dev':
+
+		pass
+	# TODO: Fine-tune params
+	elif mode == 'test':
+		pass
 
 	print('[DONE]')
 	return None
-
 
 if __name__ == '__main__':
 	main()
