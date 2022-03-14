@@ -1,3 +1,7 @@
+from ir_measures import AP, Rprec
+import ir_measures
+
+import json
 import os
 import pandas as pd
 from dataprep.eda import *
@@ -57,10 +61,10 @@ def get_similarity_matrix(dataset):
 
 
 # TODO: Print samples from train/dev/test
-def get_recommendations(similarity_matrix, input_id, jobs_to_return=15):
-	print(f"Input:")
-	print(f"Title: {job_dict[input_id]['title']}")
-	print(f"Description: {job_dict[input_id]['description']}\n\n")
+def get_recommendations(similarity_matrix, input_id, jobs_to_return=1):
+	# print(f"Input:")
+	# print(f"Title: {job_dict[input_id]['title']}")
+	# print(f"Description: {job_dict[input_id]['description']}\n\n")
 
 	last_idx = similarity_matrix.tail(1).index
 	temp_df = similarity_matrix.iloc[last_idx].T
@@ -74,16 +78,16 @@ def get_recommendations(similarity_matrix, input_id, jobs_to_return=15):
 	similarity_scores = [item for sublist in recommended_jobs_df.iloc[1:].values.tolist() for item in sublist]
 	for current_id, sim_score in zip(list_with_similar_job_ids, similarity_scores):
 
-		print(f'Current id: {current_id}')
-		print(f"Cosine Similarity Score: {sim_score}")
-		print(f"Title: {job_dict[current_id]['title']}")
-		print(f"Description: {job_dict[current_id]['description']}\n")
+		# print(f'Current id: {current_id}')
+		# print(f"Cosine Similarity Score: {sim_score}")
+		# print(f"Title: {job_dict[current_id]['title']}")
+		# print(f"Description: {job_dict[current_id]['description']}\n")
 
 		# TODO: Fine-tune it
-		if sim_score < 0.70:
+		if (not dict_with_relevant_jobs and sim_score < 0.70):
 			continue
 
-		dict_with_relevant_jobs[current_id] = round(sim_score*10)
+		dict_with_relevant_jobs[str(current_id)] = round(sim_score * 10, 4)
 
 	return dict_with_relevant_jobs
 
@@ -214,6 +218,8 @@ def prepare_dataset(df, mode):
 @click.option('--mode', default='dev', help='Pick between <train>, <dev>, <test>.')
 def main(dataset_filepath, mode):
 	print('[START]')
+	print(f'--dataset_filepath: {dataset_filepath}')
+	print(f'--mode: {mode}\n')
 	if mode not in ['train', 'dev', 'test']:
 		print(f'Mode is not <train> or <inference>. Exiting..')
 		exit()
@@ -228,25 +234,39 @@ def main(dataset_filepath, mode):
 	# Prepare dataset: clean, encode, get tf-idf vectors, normalize & delete unwanted cols
 	dataset = prepare_dataset(df, mode)
 
-	model_filename = os.path.join(MODEL_FILEPATH, 'svd.pkl')
-	corpus_reduced_dims_filepath = os.path.join(DATA_FILEPATH, 'processed_corpus_reduced_dims.csv')
-
 	if mode == 'train':
-		svd = TruncatedSVD(n_components=100, n_iter=7, random_state=42)
-		svd.fit(dataset)
 
-		with open(model_filename, 'wb') as fout:  # Save the model
-			pickle.dump(svd, fout)
+		N_ITERS = [3, 5, 7]  # Used for evaluating on validation set and tuning our final model.
+		for n_iters in N_ITERS:
+			print(f'Building SVD model with n_iters: {n_iters}')
+			svd = TruncatedSVD(n_components=100, n_iter=n_iters, random_state=42)
+			svd.fit(dataset)
 
-		# Save the training corpus
-		# It will be used in dev/test mode later to compute similarities between jobs and generate recommendations
-		dataset_reduced_dims = pd.DataFrame(svd.transform(dataset))
-		dataset_reduced_dims.to_csv(corpus_reduced_dims_filepath, index=False)
+			model_filename = f'svd_{n_iters}.pkl'
+			model_filename = os.path.join(MODEL_FILEPATH, model_filename)
+			with open(model_filename, 'wb') as fout:  # Save the model
+				pickle.dump(svd, fout)
+			print(f'Saved model to {model_filename}')
+
+			# Save the training corpus
+			# It will be used in dev/test mode later to compute similarities between jobs and generate recommendations
+			corpus_reduced_dims_filepath = f'processed_corpus_reduced_dims_{n_iters}.csv'
+			corpus_reduced_dims_filepath = os.path.join(DATA_FILEPATH, corpus_reduced_dims_filepath)
+			dataset_reduced_dims = pd.DataFrame(svd.transform(dataset))
+			dataset_reduced_dims.to_csv(corpus_reduced_dims_filepath, index=False)
+			print(f'Saved corpus to {corpus_reduced_dims_filepath}')
 
 		job_ids = corpus_job_ids
 	else:
+		# TODO: Put dev flag here
+		best_iter = 3
+		best_model_filename = f'svd_{best_iter}.pkl'
+		best_model_filename = os.path.join(MODEL_FILEPATH, best_model_filename)
 
-		with open(model_filename, 'rb') as fin:
+		corpus_reduced_dims_filepath = f'processed_corpus_reduced_dims_{best_iter}.csv'
+		corpus_reduced_dims_filepath = os.path.join(DATA_FILEPATH, corpus_reduced_dims_filepath)
+
+		with open(best_model_filename, 'rb') as fin:
 			svd = pickle.load(fin)
 
 		corpus_df = pd.read_csv(corpus_reduced_dims_filepath)
@@ -254,29 +274,40 @@ def main(dataset_filepath, mode):
 
 		job_ids = dev_job_ids if mode == 'dev' else test_job_ids
 
-	dataframe_used_for_similarity = corpus_df.copy()
-	predictions_dict = dict()
-	for iter_tuple in zip(infer_df.iterrows(), job_ids):
-		row = iter_tuple[0][1]
-		job_id = iter_tuple[1]
-		dataframe_used_for_similarity.loc[dataframe_used_for_similarity.shape[0]] = list(row.values)
-		similarity_matrix = get_similarity_matrix(dataframe_used_for_similarity)
+		# if mode == 'dev':
 
-		predictions_dict[job_id] = get_recommendations(similarity_matrix, job_id)
-		dataframe_used_for_similarity.drop(dataframe_used_for_similarity.tail(1).index, inplace=True)  # drop last row
+		dataframe_used_for_similarity = corpus_df.copy()
+		predictions_dict = dict()
+		for iter_tuple in zip(infer_df.iterrows(), job_ids):
+			row = iter_tuple[0][1]
+			job_id = iter_tuple[1]
+			dataframe_used_for_similarity.loc[dataframe_used_for_similarity.shape[0]] = list(row.values)
+			similarity_matrix = get_similarity_matrix(dataframe_used_for_similarity)
 
-		print('')
+			predictions_dict[str(job_id)] = get_recommendations(similarity_matrix, job_id)
+			dataframe_used_for_similarity.drop(dataframe_used_for_similarity.tail(1).index,
+											   inplace=True)  # Drop added row
 
+		dev_predictions_json_filename = 'dev_predictions.json'
+		dev_predictions_json_filename = os.path.join(DATA_FILEPATH, dev_predictions_json_filename)
+		with open(dev_predictions_json_filename, 'w') as fout:
+			json.dump(predictions_dict, fout)
+
+		aggr_result = ir_measures.calc_aggregate([AP, Rprec], dev_gold_answers, predictions_dict)
+		map_score = aggr_result[AP]
+		rprec_score = aggr_result[Rprec]
+
+		print(f'Avg of metrics: {(map_score + rprec_score) / 2}')
 
 	if mode == 'dev':
-
 		pass
-	# TODO: Fine-tune params
 	elif mode == 'test':
 		pass
+	# TODO: Put test flag here. Move most of the dev code here except the metrics one.
 
 	print('[DONE]')
 	return None
+
 
 if __name__ == '__main__':
 	main()
