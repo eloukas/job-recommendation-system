@@ -1,5 +1,6 @@
 import os
 import pandas as pd
+import json
 
 # Paths
 PROJECT_FILEPATH = os.getcwd()
@@ -11,6 +12,9 @@ VECTORIZERS_FILEPATH = os.path.join(PROJECT_FILEPATH, 'vectorizers')
 MODEL_FILEPATH = os.path.join(PROJECT_FILEPATH, 'model')
 
 DEV_GOLD_ANSWERS_FILEPATH = os.path.join(DATA_FILEPATH, 'dev_gold_answers.json')
+with open(DEV_GOLD_ANSWERS_FILEPATH, 'r') as fin:
+	dev_gold_answers = json.load(fin)
+
 CORPUS_PAIRS_FILEPATH = os.path.join(DATA_FILEPATH, 'corpus_pairs.json')
 DEV_JOB_QUERIES_FILEPATH = os.path.join(DATA_FILEPATH, 'dev_job_queries.jsonl')
 TEST_JOB_QUERIES_FILEPATH = os.path.join(DATA_FILEPATH, 'test_job_queries.jsonl')
