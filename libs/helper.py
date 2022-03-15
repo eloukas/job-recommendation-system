@@ -60,4 +60,3 @@ test_job_ids = pd.read_json(TEST_JOB_QUERIES_FILEPATH, lines=True)
 test_job_ids = test_job_ids['job_id'].tolist()
 
 del temp_df
-del corpus_df

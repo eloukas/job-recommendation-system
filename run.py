@@ -38,10 +38,10 @@ def get_recommendations(similarity_matrix, job_id, demo=False, jobs_to_return=1)
 	"""
 
 	# Used for showcasing input/output
-	if demo:
-		print(f"Input Query:")
-		print(f"Title: {job_dict[job_id]['title']}")
-		print(f"Description: {job_dict[job_id]['description']}\n\n")
+	# if demo:
+	# 	print(f"Input Query:")
+	# 	print(f"Title: {job_dict[job_id]['title']}")
+	# 	print(f"Description: {job_dict[job_id]['description']}\n\n")
 
 	last_idx = similarity_matrix.tail(1).index  # The query is represented by the last row on the last row of the data
 	temp_df = similarity_matrix.iloc[last_idx].T
@@ -55,15 +55,20 @@ def get_recommendations(similarity_matrix, job_id, demo=False, jobs_to_return=1)
 	# Return similarity scores, titles, descriptions
 	similarity_scores = [item for sublist in recommended_jobs_df.iloc[1:].values.tolist() for item in sublist]
 
-	if demo: print(f'Recommended Jobs:')
+	# if demo: print(f'Recommended Jobs:')
+	if demo: list_to_return = []
 
 	for current_id, sim_score in zip(list_with_similar_job_ids, similarity_scores):
 
 		# Used for showcasing input/output
+
 		if demo:
-			print(f"Cosine Similarity Score: {sim_score}")
-			print(f"Title: {job_dict[current_id]['title']}")
-			print(f"Description: {job_dict[current_id]['description']}\n")
+			for elem in [sim_score, job_dict[current_id]['title'], job_dict[current_id]['description']]:
+				list_to_return.append(elem)
+
+		# print(f"Cosine Similarity Score: {sim_score}")
+		# print(f"Title: {job_dict[current_id]['title']}")
+		# print(f"Description: {job_dict[current_id]['description']}\n")
 
 		# TODO: Fine-tune similarity score threshold
 		if not dict_with_relevant_jobs and sim_score < 0.70:
@@ -71,7 +76,10 @@ def get_recommendations(similarity_matrix, job_id, demo=False, jobs_to_return=1)
 
 		dict_with_relevant_jobs[str(current_id)] = round(sim_score * 10, 4)
 
-	return dict_with_relevant_jobs
+	if demo:
+		return list_to_return
+	else:
+		return dict_with_relevant_jobs
 
 
 def normalize(dataset):
@@ -140,6 +148,11 @@ def get_tfidf(dataset, mode):
 		merged_df.drop(col, axis=1, inplace=True)  # Delete old column
 		tfidf_df = pd.DataFrame(tfidf_matrix.toarray(), columns=tfidf.get_feature_names_out())
 		merged_df = pd.concat([merged_df, tfidf_df], axis=1)
+
+	# Trick to bypass concatenation limitations on demo mode when running on Series instead of DataFrames
+	if merged_df.shape[0] == 2:
+		merged_df = pd.DataFrame(merged_df.iloc[1].fillna(merged_df.iloc[0])).T
+		print('merging datasets')
 
 	return merged_df
 
@@ -255,8 +268,8 @@ def prepare_dataset(df, mode):
 
 
 @click.command()
-@click.option('--dataset_filepath', default='./data/test_job_queries.jsonl')
-@click.option('--mode', default='test', help='Pick between <train>, <dev>, <test>.')
+@click.option('--dataset_filepath', default='./data/dev_job_queries.jsonl')
+@click.option('--mode', default='dev', help='Pick between <train>, <dev>, <test>.')
 def main(dataset_filepath, mode):
 	print('[START]')
 	print(f'--dataset_filepath: {dataset_filepath}')
@@ -308,7 +321,7 @@ def main(dataset_filepath, mode):
 		corpus_reduced_dims_filepath = f'processed_corpus_reduced_dims_{BEST_ITER}.csv'
 		corpus_reduced_dims_filepath = os.path.join(DATA_FILEPATH, corpus_reduced_dims_filepath)
 
-		corpus_df = pd.read_csv(corpus_reduced_dims_filepath)
+		corpus_df_reduced_dims = pd.read_csv(corpus_reduced_dims_filepath)
 
 		with open(best_model_filename, 'rb') as fin:
 			svd = pickle.load(fin)
@@ -319,7 +332,7 @@ def main(dataset_filepath, mode):
 		job_ids = dev_job_ids if mode == 'dev' else test_job_ids
 
 		# For each job id vector in the inference set, count its cosine similarity
-		dataframe_used_for_similarity = corpus_df.copy()
+		dataframe_used_for_similarity = corpus_df_reduced_dims.copy()
 		predictions_dict = dict()
 		for iter_tuple in zip(infer_df.iterrows(), job_ids):
 			row = iter_tuple[0][1]
