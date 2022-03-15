@@ -29,6 +29,10 @@ COLUMNS_TO_COUNT_FREQUENCIES = ['title', 'description', 'requirement_summary', '
 								'technical_skills']
 COLUMNS_TO_NORMALIZE = ['account_id', 'employment_type', 'function', 'education', 'collar_color']
 
+# Used for evaluating on validation set and tuning our final model.
+N_ITERS = [3, 5, 7]
+BEST_ITER = 5
+
 # Dictionaries for easy mapping of job id to company, title & description
 corpus_df = pd.read_json(CORPUS_FILEPATH, lines=True)
 dev_df = pd.read_json(DEV_JOB_QUERIES_FILEPATH, lines=True)
