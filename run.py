@@ -1,10 +1,5 @@
 from ir_measures import AP, Rprec
 import ir_measures
-
-import json
-import os
-import pandas as pd
-from dataprep.eda import *
 from nltk.stem import PorterStemmer
 from libs.helper import *
 import os
@@ -32,23 +27,24 @@ def get_similarity_matrix(dataset):
 
 
 # TODO: Fine-tune n jobs to return
-def get_recommendations(similarity_matrix, jobs_to_return=1, demo=False):
+def get_recommendations(similarity_matrix, job_id, demo=False, jobs_to_return=1):
 	"""
 	Returns the top n similar jobs
 	:param similarity_matrix: the similarity matrix
+	:param job_id: the query job id
+	:param demo: boolean to indicate if the recommendations should be printed. Use it only for reporting purposes.
 	:param jobs_to_return: the number of jobs to return
 	:return: a dict with the recommended jobs
 	"""
 
-	job_id = similarity_matrix.tail(1).index
-
 	# Used for showcasing input/output
 	if demo:
-		print(f"Input:")
+		print(f"Input Query:")
 		print(f"Title: {job_dict[job_id]['title']}")
 		print(f"Description: {job_dict[job_id]['description']}\n\n")
 
-	temp_df = similarity_matrix.iloc[job_id].T
+	last_idx = similarity_matrix.tail(1).index  # The query is represented by the last row on the last row of the data
+	temp_df = similarity_matrix.iloc[last_idx].T
 	temp_df.rename(columns={temp_df.columns[0]: 'given_job_id'}, inplace=True)
 
 	recommended_jobs_df = temp_df.nlargest(jobs_to_return + 1, 'given_job_id')  # Get top n similar jobs
@@ -58,6 +54,9 @@ def get_recommendations(similarity_matrix, jobs_to_return=1, demo=False):
 
 	# Return similarity scores, titles, descriptions
 	similarity_scores = [item for sublist in recommended_jobs_df.iloc[1:].values.tolist() for item in sublist]
+
+	if demo: print(f'Recommended Jobs:')
+
 	for current_id, sim_score in zip(list_with_similar_job_ids, similarity_scores):
 
 		# Used for showcasing input/output
@@ -67,7 +66,7 @@ def get_recommendations(similarity_matrix, jobs_to_return=1, demo=False):
 			print(f"Description: {job_dict[current_id]['description']}\n")
 
 		# TODO: Fine-tune similarity score threshold
-		if (not dict_with_relevant_jobs and sim_score < 0.70):
+		if not dict_with_relevant_jobs and sim_score < 0.70:
 			continue
 
 		dict_with_relevant_jobs[str(current_id)] = round(sim_score * 10, 4)
