@@ -74,7 +74,6 @@ if (query_id):
 
 			df = find_df(query_id)
 
-			# TODO: Debug 142 line at run.py -- dataset returns 2 rows
 			df = prepare_dataset(df, 'test')
 
 			with open(best_model_filename, 'rb') as fin:
@@ -93,12 +92,8 @@ if (query_id):
 				similarity_matrix = get_similarity_matrix(dataframe_used_for_similarity)
 
 				# Append to the final dictionary
-				# TODO: Modify get recommendations to return the title, cosine similarity, and string
 				list_to_display = get_recommendations(similarity_matrix, job_id, demo=True)
 				dataframe_used_for_similarity.drop(dataframe_used_for_similarity.tail(1).index, inplace=True)
 
 				st.header(f"{list_to_display[1]}")
 				st.caption(f"{clean_html(list_to_display[2])}")
-
-				# Drop added row & reiterate
-
