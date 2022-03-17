@@ -38,10 +38,10 @@ def get_recommendations(similarity_matrix, job_id, demo=False, jobs_to_return=1)
 	"""
 
 	# Used for showcasing input/output
-	# if demo:
-	# 	print(f"Input Query:")
-	# 	print(f"Title: {job_dict[job_id]['title']}")
-	# 	print(f"Description: {job_dict[job_id]['description']}\n\n")
+	if demo:
+		print(f"Input Query:")
+		print(f"Title: {job_dict[job_id]['title']}")
+		print(f"Description: {job_dict[job_id]['description']}\n\n")
 
 	last_idx = similarity_matrix.tail(1).index  # The query is represented by the last row on the last row of the data
 	temp_df = similarity_matrix.iloc[last_idx].T
@@ -55,20 +55,18 @@ def get_recommendations(similarity_matrix, job_id, demo=False, jobs_to_return=1)
 	# Return similarity scores, titles, descriptions
 	similarity_scores = [item for sublist in recommended_jobs_df.iloc[1:].values.tolist() for item in sublist]
 
-	# if demo: print(f'Recommended Jobs:')
-	if demo: list_to_return = []
+	list_to_return = []
 
 	for current_id, sim_score in zip(list_with_similar_job_ids, similarity_scores):
 
 		# Used for showcasing input/output
-
 		if demo:
 			for elem in [sim_score, job_dict[current_id]['title'], job_dict[current_id]['description']]:
 				list_to_return.append(elem)
 
-		# print(f"Cosine Similarity Score: {sim_score}")
-		# print(f"Title: {job_dict[current_id]['title']}")
-		# print(f"Description: {job_dict[current_id]['description']}\n")
+			print(f"Cosine Similarity Score: {sim_score}")
+			print(f"Title: {job_dict[current_id]['title']}")
+			print(f"Description: {job_dict[current_id]['description']}\n")
 
 		# TODO: Fine-tune similarity score threshold
 		if not dict_with_relevant_jobs and sim_score < 0.70:
@@ -84,7 +82,7 @@ def get_recommendations(similarity_matrix, job_id, demo=False, jobs_to_return=1)
 
 def normalize(dataset):
 	"""
-	Normalizes columns in a 0,1 range
+	Normalizes columns in a 0, 1 range
 	:param dataset: the dataset
 	:return: the normalized dataset
 	"""
@@ -120,7 +118,7 @@ def get_tfidf(dataset, mode):
 
 		if mode == 'train':
 
-			# TODO: Fine-tune threshold on dev set
+			# TODO: Fine-tune thresholds on dev set
 			if col in ['title', 'user_keywords']:
 				max_df = 0.99
 				tfidf = TfidfVectorizer(stop_words='english', ngram_range=(1, 1), max_df=max_df)
@@ -268,8 +266,8 @@ def prepare_dataset(df, mode):
 
 
 @click.command()
-@click.option('--dataset_filepath', default='./data/dev_job_queries.jsonl')
-@click.option('--mode', default='dev', help='Pick between <train>, <dev>, <test>.')
+@click.option('--dataset_filepath', default='./data/corpus_job_queries.jsonl')
+@click.option('--mode', default='train', help='Pick between <train>, <dev>, <test>.')
 def main(dataset_filepath, mode):
 	print('[START]')
 	print(f'--dataset_filepath: {dataset_filepath}')
