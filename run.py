@@ -266,7 +266,7 @@ def prepare_dataset(df, mode):
 
 
 @click.command()
-@click.option('--dataset_filepath', default='./data/corpus_job_queries.jsonl')
+@click.option('--dataset_filepath', default='./data/corpus_jobs.jsonl')
 @click.option('--mode', default='train', help='Pick between <train>, <dev>, <test>.')
 def main(dataset_filepath, mode):
 	print('[START]')
