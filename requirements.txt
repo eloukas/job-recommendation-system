@@ -5,4 +5,4 @@ nltk==3.7
 pandas==1.4.1
 ir-measures==0.2.3
 dataprep==0.4.2
-streamlit==1.7.0
+streamlit==1.30.0
